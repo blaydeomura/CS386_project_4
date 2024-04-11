@@ -36,8 +36,9 @@ loop:
 	;debug 0
 
 	read r1
-	store r1 r5
 	or r3 r1 r3
+
+	store r3 r5
 
 	load r5 r3
 	debug 0
