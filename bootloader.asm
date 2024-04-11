@@ -1,36 +1,55 @@
 ; Store first two bytes of input into r0
 main:
 	read r0
+	;read r4
 	shl r0 8 r0
+	;or r0 r4 r0
 	read r0
 
-	loadLiteral 1024 r2				; r2: 1024, just preserves the amount we need to buffer the program by
-	loadLiteral 0 r3				; r3: Stores how many instructions we have stored in memory so far
+	debug 0
+
+	loadLiteral 1024 r5				; r2: 1024, just preserves the amount we need to buffer the program by
+
+	loadLiteral 0 r2
 
 ; Next: Keep reading from input into r1 until we get 0
 loop:
-	; First: Read a word (4 bytes) into r1
-	loadLiteral 0 r1
+	; First: Read a word (4 bytes) into r1, r2, r3, and r4
+	loadLiteral 0 r3
+	
+	read r1
+	shl r1 24 r1
+	or r3 r1 r3
+
+	;debug 0
+	
+	read r1
+	shl r1 16 r1
+	or r3 r1 r3
+
+	;debug 0
+
 	read r1
 	shl r1 8 r1
-	read r1
+	or r3 r1 r3
+	
+	;debug 0
 
+	read r1
+	store r1 r5
+	or r3 r1 r3
+
+	load r5 r3
 	debug 0
 	
-	shl r1 8 r1
-	read r1
-	shl r1 8 r1
-	read r1
+	add r5 1 r5
+	add r2 1 r2
 
-	; Then: 
-	add r2 r3 r4	; r4 contains the address where we want to store r1
-	store r1 r4		; Store the word instruction into r4
+	;debug 0
 
-	add r3 1 r3
-
-	eq r1 0 r5
+	lt r2 r0 r3		; Check if r3, our word counter, is equal to r0, the program length
 	
-	cmove r5 .loop r7
+	cmove r3 .loop r7
 
 end:
 	write 'd'
@@ -39,4 +58,4 @@ end:
 	write 'e'
 	write 10
 	debug 0
-	move r2 r7
+	loadLiteral 1024 r7
