@@ -49,10 +49,11 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 	// Secruity check 2:
 	// Check for privileged instructions if in user mode.
 	if !k.kernelMode {
-		currentInstr := c.memory[c.registers[7]] // Assuming IP is in register 7.
-		if currentInstr.IsPrivileged() {
-			return false, fmt.Errorf("Illegal instruction access in user mode")
-		}
+		// currentInstr := c.memory[c.registers[7]] // Assuming IP is in register 7.
+		//TODO: check if this instruction has privilleges
+		// if currentInstr.IsPrivileged() {
+		// 	return false, fmt.Errorf("Illegal instruction access in user mode")
+		// }
 	}
 
 	// ADD MORE Checks or state update below-------
@@ -120,16 +121,16 @@ func init() {
 
 	// TODO: Privellaged instructions like 'halt', 'read', 'write' should only be executed in kernel
 	// For syscall essentially
-	instrSyscall.addHook(func(c *cpu, args [3]byte) (bool, error) {
-		if !c.kernel.kernelMode {
-			// Switch to kernel mode and set the trap handler address
-			c.kernel.kernelMode = true
-			c.kernel.trapHandlerAddr = c.registers[7]
-			c.registers[7] = k.trapHandlerAddr // Jump to the trap handler
-			return true, nil                   // Skip the current instruction execution as we handle the mode switch
-		}
-		return false, nil
-	})
+	// instrSyscallCheck.addHook(func(c *cpu, args [3]byte) (bool, error) {
+	// 	if !c.kernel.kernelMode {
+	// 		// Switch to kernel mode and set the trap handler address
+	// 		c.kernel.kernelMode = true
+	// 		//TODO: Get register 7 iptr state
+	// 		//TODO: GET TRAP HANDLER ADDRESS
+	// 		return true, nil                   // Skip the current instruction execution as we handle the mode switch
+	// 	}
+	// 	return false, nil
+	// })
 
 	//------ Instructions below ----
 
