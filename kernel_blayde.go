@@ -19,7 +19,7 @@ var initKernelCpuState = kernelCpuState{
 	// TODO: Fill this in.
 	kernelMode:      false,  // Start in user mode.
 	timerCount:      0,      // Timer count starts at 0.
-	trapHandlerAddr: 0x1000, // NEED TO PUT ADDRESS OF KERNEL MODE HERE?
+	trapHandlerAddr: 0x1000, // TODO: NEED TO PUT ADDRESS OF KERNEL MODE HERE?
 }
 
 // -----For preexecute hook, this is where all of the security concerns are done----
@@ -36,17 +36,24 @@ var initKernelCpuState = kernelCpuState{
 // will immediately return without any further execution.
 func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 	// TODO: Fill this in.
+	// TODO: If syscall is called, make sure in kernel mode
+    // if is a syscall // Assuming isSyscall checks if current instruction is a syscall
+    //     iptr registers[7] = k.trapHandlerAddr // Set instruction pointer to trap handler address
+    //     return true, nil // Skip normal execution to handle the syscall in kernel mode
+    // }
+
+
 	// Increment the instruction timer on each CPU step.
 	k.timerCount++
 
-	// Security check 1:
+	// Security check 2:
 	// Check for timer interrupt every 128 instructions.
-	if k.timerCount%128 == 0 {
+	if k.timerCount % 128 == 0 {
 		fmt.Println("\nTimer fired!\n")
 		// TODO: Need to halt and interrupt here? need to switch to kernel mode?
 	}
 
-	// Secruity check 2:
+	// Secruity check 3:
 	// Check for privileged instructions if in user mode.
 	if !k.kernelMode {
 		// currentInstr := c.memory[c.registers[7]] // Assuming IP is in register 7.
@@ -57,8 +64,6 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 	}
 
 	// ADD MORE Checks or state update below-------
-
-	// TODO: If syscall is called, make sure in kernel mode
 
 	// TODO: Manage the behavior when this pre execute hook fails
 
@@ -118,6 +123,10 @@ func init() {
 		}
 		return false, nil
 	})
+
+	//TODO: implement hook for read
+
+	//TODO: implement hook for halt
 
 	// TODO: Privellaged instructions like 'halt', 'read', 'write' should only be executed in kernel
 	// For syscall essentially
