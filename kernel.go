@@ -42,28 +42,21 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
     //     return true, nil // Skip normal execution to handle the syscall in kernel mode
     // }
 
-
-	// Increment the instruction timer on each CPU step.
-	//k.timerCount++
+	// if not in kernel mode increment the timer
+	if !c.kernel.kernelMode {
+		k.timerCount++;
+	}
 
 	// Security check 2:
 	// Check for timer interrupt every 128 instructions.
-	//if k.timerCount % 128 == 0 {
-	//	fmt.Println("\nTimer fired!\n")
-		// TODO: Need to halt and interrupt here? need to switch to kernel mode?
-	//}
+	if k.timerCount >= 128 {
+		fmt.Println("\nTimer fired!\n");
+		k.timerCount = 0;
+	}
 
 	// Secruity check 3:
-	// Check for privileged instructions if in user mode.
-	//if !k.kernelMode {
-		// currentInstr := c.memory[c.registers[7]] // Assuming IP is in register 7.
-		//TODO: check if this instruction has privilleges
-		// if currentInstr.IsPrivileged() {
-		// 	return false, fmt.Errorf("Illegal instruction access in user mode")
-		// }
-	//}
-
-	// ADD MORE Checks or state update below-------
+	//we need to get instruciton pointer like how josh was saying after friday's class
+	// either store it in cpu or memory, LOOK AT NOTES
 
 	// TODO: Manage the behavior when this pre execute hook fails
 
@@ -96,7 +89,10 @@ func init() {
 		})
 	}
 
-	// TODO: Add hooks to other existing instructions to implement kernel support.
+	// -----Important-----
+	// Basic hook looks  like this:
+		// if a wite, read, load etc is not supposed to happen, then we need to switch to kernel mode
+		// else if it is not called, then we're good to continue
 
 	//TODO: Hook for write instruction to check for privellages
 	instrWrite.addHook(func(c *cpu, args [3]byte) (bool, error) {
