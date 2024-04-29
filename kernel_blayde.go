@@ -39,7 +39,7 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 	// TODO: If syscall is called, make sure in kernel mode
     // if is a syscall // Assuming isSyscall checks if current instruction is a syscall
     //     iptr registers[7] = k.trapHandlerAddr // Set instruction pointer to trap handler address
-    //     return true, nil // Skip normal execution to handle the syscall in kernel mode
+    //     return true, nil // Skip to normal execution to handle the syscall in kernel mode
     // }
 
 
@@ -203,8 +203,57 @@ func init() {
 		}
 
 		// TODO: Add other instructions that can be used to implement a kernel.
+
+		// setTrapHandler takes one argument, which should be the trapHandler address in kernel.asm.
+		// setTrapHandler sets the kernel trapHandlerAddr to args[0]
+		instrSetTrapHandler = &instr{
+			name: "setTrapHandler",
+			cb: func(c *cpu, args [3]byte) error {
+				fmt.Print("Hello")
+				c.kernel.trapHandlerAddr = resolveArg(c, args[0])
+				return nil
+			},
+			validate: genValidate(regOrLit, ignore, ignore),
+		}
+
+
+				// instrChangeMode can take 1 or 2 args. 
+		// It is meant to change kernel modes and to switch back into the user program at the same time
+		// instrChangeMode checks first if the kernel is in kernelMode or not. If not, it does nothing
+		// If it is called in kernel mode, instrChangeMode changes the kernelMode to parameter 1, which should be either
+		// 0 or 1.
+		// 0: Switch to user mode, so kernelMode = false
+		// 1: Switch to kernel mode, so kernelMode = true
+		// Then, if the second argument passed to instrChangeMode is not empty, it loads the value at args[1] and 
+		// sets the iptr to that value
+		instrChangeMode = &instr{
+			name: "changeMode",
+			cb: func(c *cpu, args [3]byte) error {
+				if c.kernel.kernelMode {
+					newMode := int(resolveArg(c, args[0]))
+					if newMode == 0 {
+						c.kernel.kernelMode = false
+					} else if newMode == 1 {
+						c.kernel.kernelMode = true
+					} else {
+						return fmt.Errorf("Invalid kernel mode %d", newMode)
+					}
+
+					branchAddr := int(args[1] & 0x7F)
+					if branchAddr != 0 {
+						c.registers[7] = c.memory[branchAddr]
+					}
+				}
+				return nil
+			},
+			validate: genValidate(regOrLit, regOrLit, ignore),
+		}
+
+
 	)
 
 	// Add kernel instructions to the instruction set.
 	instructionSet.add(instrSyscall)
+	instructionSet.add(instrSetTrapHandler)
+	instructionSet.add(instrChangeMode)
 }
