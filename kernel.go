@@ -12,6 +12,7 @@ type kernelCpuState struct {
 	kernelMode      bool   // True if in kernel mode, false if in user mode.
 	timerCount      uint32 // Count of instructions executed for timer management.
 	trapHandlerAddr word // Static memory address where the trap handler is located.
+	timerFireCount	uint32
 }
 
 // The initial kernel state when the CPU boots.
@@ -20,6 +21,7 @@ var initKernelCpuState = kernelCpuState{
 	kernelMode:      true,  // Start in kernel mode.
 	timerCount:      0,      // Timer count starts at 0.
 	trapHandlerAddr: 0, // TODO: NEED TO PUT ADDRESS OF KERNEL MODE HERE?
+	timerFireCount:	 0,
 }
 
 // -----For preexecute hook, this is where all of the security concerns are done----
@@ -51,6 +53,7 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 	// Check for timer interrupt every 128 instructions.
 	if k.timerCount >= 128 {
 		fmt.Println("\nTimer fired!\n");
+		k.timerFireCount += 1;
 		k.timerCount = 0;
 	}
 
@@ -97,7 +100,19 @@ func init() {
 	//TODO: Hook for write instruction to check for privellages
 	instrWrite.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			return true, fmt.Errorf("write operation not allowed in user mode")
+			//return true, fmt.Errorf("write operation not allowed in user mode")
+			fmt.Print("\nIllegal Instruction!\n")
+			instrHalt.cb(c, args)
+			return true, nil
+		}
+		return false, nil
+	})
+
+	instrRead.addHook(func(c *cpu, args [3]byte) (bool, error) {
+		if !c.kernel.kernelMode {
+			fmt.Print("\nIllegal Instruction!\n")
+			instrHalt.cb(c, args)
+			return true, nil
 		}
 		return false, nil
 	})
@@ -107,7 +122,10 @@ func init() {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[0])
 			if addr < 1024 || addr >= 2048 {
-				return true, fmt.Errorf("\nOut of bounds memory access!\n")
+				//return true, fmt.Errorf("\nOut of bounds memory access!\n")
+				fmt.Print("\nOut of bounds memory access!\n")
+				instrHalt.cb(c, args)
+				return true, nil
 			}
 		}
 		return false, nil
@@ -118,9 +136,23 @@ func init() {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[1])
 			if addr < 1024 || addr >= 2048 {
-				return true, fmt.Errorf("\nOut of bounds memory access!\n")
+				//return true, fmt.Errorf("Out of bounds memory access!\n")
+				fmt.Print("\nOut of bounds memory access!\n")
+				instrHalt.cb(c, args)
+				return true, nil
 			}
 		}
+		return false, nil
+	})
+
+	instrHalt.addHook(func(c *cpu, args [3]byte) (bool, error) {
+		if !c.kernel.kernelMode {
+			fmt.Print("\nIllegal Instruction!\n")
+			c.kernel.kernelMode = true
+			instrHalt.cb(c, args)
+			return true, nil
+}
+		fmt.Printf("Timer fired: %8.8x times\n", c.kernel.timerFireCount)
 		return false, nil
 	})
 
@@ -193,13 +225,11 @@ func init() {
 		instrSetTrapHandler = &instr{
 			name: "setTrapHandler",
 			cb: func(c *cpu, args [3]byte) error {
-				fmt.Print("Hello")
 				c.kernel.trapHandlerAddr = resolveArg(c, args[0])
 				return nil
 			},
 			validate: genValidate(regOrLit, ignore, ignore),
 		}
-
 
 		// instrChangeMode can take 1 or 2 args. 
 		// It is meant to change kernel modes and to switch back into the user program at the same time
