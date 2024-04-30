@@ -29,7 +29,7 @@ func kernelTrap(c *cpu) {
 	c.memory[28] = c.registers[7] // save iptr in memory
 	c.kernel.kernelMode = true	// switch to kernel mode
 	c.registers[7] = c.kernel.trapHandlerAddr // set the iptr to address to the trap handler
-	fmt.Println("Switched to kernel mode...\n") 
+	//fmt.Println("Switched to kernel mode...\n") 
 }
 
 
@@ -61,7 +61,7 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 
 	// Check for timer interrupt every 128 instructions.
 	if k.timerCount >= 128 {
-		fmt.Println("\nTimer fired!\n")
+		fmt.Print("\nTimer fired!\n")
 		k.timerFireCount += 1
 		k.timerCount = 0
 	}
@@ -102,7 +102,7 @@ func init() {
 	// Hook for write instruction to check for privellages
 	instrWrite.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			fmt.Print("\nIllegal Instruction!\n")
+			c.memory[24] = 5
 			kernelTrap(c)
 			// instrHalt.cb(c, args)
 			return true, nil
@@ -113,7 +113,7 @@ func init() {
 	// Hook to try and Read
 	instrRead.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			fmt.Print("\nIllegal Instruction!\n")
+			c.memory[24] = 5
 			kernelTrap(c)
 			// instrHalt.cb(c, args)
 			return true, nil
@@ -126,8 +126,7 @@ func init() {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[0])
 			if addr < 1024 || addr >= 2048 {
-				//return true, fmt.Errorf("\nOut of bounds memory access!\n")
-				fmt.Print("\nOut of bounds memory access!\n")
+				c.memory[24] = 4
 				kernelTrap(c)
 				// instrHalt.cb(c, args)
 				return true, nil
@@ -141,8 +140,7 @@ func init() {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[1])
 			if addr < 1024 || addr >= 2048 {
-				//return true, fmt.Errorf("Out of bounds memory access!\n")
-				fmt.Print("\nOut of bounds memory access!\n")
+				c.memory[24] = 4
 				kernelTrap(c)
 				// instrHalt.cb(c, args)
 				return true, nil
@@ -154,14 +152,14 @@ func init() {
 	// Hook to halt cpu
 	instrHalt.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			fmt.Print("\nIllegal Instruction!\n")
+			c.memory[24] = 5
 			kernelTrap(c)
 			// c.kernel.kernelMode = true
 			// instrHalt.cb(c, args)
 			return true, nil
 		}
-		// fmt.Printf("Timer fired: %8.8x times\n", c.kernel.timerFireCount)
-		fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
+		fmt.Printf("Timer fired %8.8x times\n", c.kernel.timerFireCount)
+		//fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
 
 		return false, nil
 	})
@@ -193,9 +191,7 @@ func init() {
 				}
 
 				c.memory[24] = word(syscallNumber)
-				c.memory[28] = c.registers[7]
-				c.registers[7] = c.kernel.trapHandlerAddr
-				c.kernel.kernelMode = true
+				kernelTrap(c)
 				//fmt.Println("Moved into trap handler...")
 				return nil
 			},

@@ -60,6 +60,14 @@ trapHandler:
 	lt r5 3 r0		; If r6 < 3: r6 == 0, 1, or 2, so it is a syscall
 	cmove r0 .syscallHandler r7
 
+	eq r5 4 r0
+	cmove r0 .memoryOutOfBounds r7
+
+	eq r5 5 r0
+	cmove r0 .illegalInstruction r7
+
+	move .exitTrapHandler r7
+
 syscallHandler:
 	; If r6 == 0, execute a read instruction
 	; If r6 == 1, execute a write instruction
@@ -101,6 +109,65 @@ haltInstr:
 	write 't'
 	write 'e'
 	write 'd'
+	write 10
+	halt
+
+memoryOutOfBounds:
+	write 10
+	write 'O'
+	write 'u'
+	write 't'
+	write 32
+	write 'o'
+	write 'f'
+	write 32
+	write 'b'
+	write 'o'
+	write 'u'
+	write 'n'
+	write 'd'
+	write 's'
+	write 32
+	write 'm'
+	write 'e'
+	write 'm'
+	write 'o'
+	write 'r'
+	write 'y'
+	write 32
+	write 'a'
+	write 'c'
+	write 'c'
+	write 'e'
+	write 's'
+	write 's'
+	write '!'
+	write 10
+	halt
+	
+illegalInstruction:
+	write 10
+	write 'I'
+	write 'l'
+	write 'l'
+	write 'e'
+	write 'g'
+	write 'a'
+	write 'l'
+	write 32
+	write 'i'
+	write 'n'
+	write 's'
+	write 't'
+	write 'r'
+	write 'u'
+	write 'c'
+	write 't'
+	write 'i'
+	write 'o'
+	write 'n'
+	write '!'
+	write 10
 	halt
 
 exitTrapHandler:
