@@ -12,7 +12,7 @@ type kernelCpuState struct {
 	kernelMode      bool   // True if in kernel mode, false if in user mode.
 	timerCount      uint32 // Count of instructions executed for timer management.
 	trapHandlerAddr word // Static memory address where the trap handler is located.
-	timerFireCount	uint32
+	timerFireCount	uint32 // how many time the timer fires
 }
 
 // The initial kernel state when the CPU boots.
@@ -20,12 +20,29 @@ var initKernelCpuState = kernelCpuState{
 	// TODO: Fill this in.
 	kernelMode:      true,  // Start in kernel mode.
 	timerCount:      0,      // Timer count starts at 0.
-	trapHandlerAddr: 0, // TODO: NEED TO PUT ADDRESS OF KERNEL MODE HERE?
-	timerFireCount:	 0,
+	trapHandlerAddr: 0, 	// Kernel Addr
+	timerFireCount:	 0,		// how many times the timer fires
 }
 
-// -----For preexecute hook, this is where all of the security concerns are done----
-// -----ie making sure enough space allocation, others listed on the document-------
+// This is trap for kernel
+func kernelTrap(c *cpu) {
+	c.memory[28] = c.registers[7] // save iptr in memory
+	c.kernel.kernelMode = true	// switch to kernel mode
+	c.registers[7] = c.kernel.trapHandlerAddr // set the iptr to address to the trap handler
+	fmt.Println("Switched to kernel mode...\n") 
+}
+
+
+// saveCpuState saves the current state of the CPU registers into a designated area of memory.
+func saveCpuState(c *cpu) {
+    fmt.Println("Saving current CPU state...")
+    // Save registers to a predefined memory area, e.g., starting at address 0.
+    for i, reg := range c.registers {
+        c.memory[4*i] = reg // Assume each register value is stored in 4 consecutive bytes.
+    }
+    fmt.Println("CPU state saved successfully.")
+}
+
 // A hook which is executed at the beginning of each instruction step.
 //
 // This permits the kernel support subsystem to perform extra validation that is
@@ -37,31 +54,17 @@ var initKernelCpuState = kernelCpuState{
 // If `preExecuteHook` returns `true`, the instruction is "skipped": `cpu.step`
 // will immediately return without any further execution.
 func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
-	// TODO: Fill this in.
-	// TODO: If syscall is called, make sure in kernel mode
-    // if is a syscall // Assuming isSyscall checks if current instruction is a syscall
-    //     iptr registers[7] = k.trapHandlerAddr // Set instruction pointer to trap handler address
-    //     return true, nil // Skip normal execution to handle the syscall in kernel mode
-    // }
-
 	// if not in kernel mode increment the timer
 	if !c.kernel.kernelMode {
 		k.timerCount++;
 	}
 
-	// Security check 2:
 	// Check for timer interrupt every 128 instructions.
 	if k.timerCount >= 128 {
-		fmt.Println("\nTimer fired!\n");
-		k.timerFireCount += 1;
-		k.timerCount = 0;
+		fmt.Println("\nTimer fired!\n")
+		k.timerFireCount += 1
+		k.timerCount = 0
 	}
-
-	// Secruity check 3:
-	//we need to get instruciton pointer like how josh was saying after friday's class
-	// either store it in cpu or memory, LOOK AT NOTES
-
-	// TODO: Manage the behavior when this pre execute hook fails
 
 	return false, nil
 }
@@ -92,88 +95,76 @@ func init() {
 		})
 	}
 
-	// -----Important-----
 	// Basic hook looks  like this:
-		// if a wite, read, load etc is not supposed to happen, then we need to switch to kernel mode
+		// if a hook is not supposed to happen, then we need to switch to kernel mode
 		// else if it is not called, then we're good to continue
 
-	//TODO: Hook for write instruction to check for privellages
+	// Hook for write instruction to check for privellages
 	instrWrite.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			//return true, fmt.Errorf("write operation not allowed in user mode")
 			fmt.Print("\nIllegal Instruction!\n")
-			instrHalt.cb(c, args)
+			kernelTrap(c)
+			// instrHalt.cb(c, args)
 			return true, nil
 		}
 		return false, nil
 	})
 
+	// Hook to try and Read
 	instrRead.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
 			fmt.Print("\nIllegal Instruction!\n")
-			instrHalt.cb(c, args)
+			kernelTrap(c)
+			// instrHalt.cb(c, args)
 			return true, nil
 		}
 		return false, nil
 	})
 
-	// TODO: If called in userland, ensure that 'load' can only access memory within bounds
+	// If called in userland, ensure that 'load' can only access memory within bounds
 	instrLoad.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[0])
 			if addr < 1024 || addr >= 2048 {
 				//return true, fmt.Errorf("\nOut of bounds memory access!\n")
 				fmt.Print("\nOut of bounds memory access!\n")
-				instrHalt.cb(c, args)
+				kernelTrap(c)
+				// instrHalt.cb(c, args)
 				return true, nil
 			}
 		}
 		return false, nil
 	})
 
-	// TODO: If called in userland, ensure that 'store' can only access memory within bounds
+	// If called in userland, ensure that 'store' can only access memory within bounds
 	instrStore.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[1])
 			if addr < 1024 || addr >= 2048 {
 				//return true, fmt.Errorf("Out of bounds memory access!\n")
 				fmt.Print("\nOut of bounds memory access!\n")
-				instrHalt.cb(c, args)
+				kernelTrap(c)
+				// instrHalt.cb(c, args)
 				return true, nil
 			}
 		}
 		return false, nil
 	})
 
+	// Hook to halt cpu
 	instrHalt.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
 			fmt.Print("\nIllegal Instruction!\n")
-			c.kernel.kernelMode = true
-			instrHalt.cb(c, args)
+			kernelTrap(c)
+			// c.kernel.kernelMode = true
+			// instrHalt.cb(c, args)
 			return true, nil
-}
-		fmt.Printf("Timer fired: %8.8x times\n", c.kernel.timerFireCount)
+		}
+		// fmt.Printf("Timer fired: %8.8x times\n", c.kernel.timerFireCount)
+		fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
+
 		return false, nil
 	})
-
-	//TODO: implement hook for read
-
-	//TODO: implement hook for halt
-
-	// TODO: Privellaged instructions like 'halt', 'read', 'write' should only be executed in kernel
-	// For syscall essentially
-	// instrSyscallCheck.addHook(func(c *cpu, args [3]byte) (bool, error) {
-	// 	if !c.kernel.kernelMode {
-	// 		// Switch to kernel mode and set the trap handler address
-	// 		c.kernel.kernelMode = true
-	// 		//TODO: Get register 7 iptr state
-	// 		//TODO: GET TRAP HANDLER ADDRESS
-	// 		return true, nil                   // Skip the current instruction execution as we handle the mode switch
-	// 	}
-	// 	return false, nil
-	// })
-
-	//------ Instructions below ----
 
 	// ---At 4/18, we test by running: go run *.go bootloader.asm prime.asm---
 	// Syscall is how a process asks kernel to do something
@@ -209,16 +200,7 @@ func init() {
 				return nil
 			},
 			validate: genValidate(regOrLit, ignore, ignore),
-
-			/*func(args [3]byte) error {
-				if syscallNumber > 2 {
-					return fmt.Errorf("invalid syscall number %d", syscallNumber)
-				}
-				return nil 
-			} */
 		}
-
-		// TODO: Add other instructions that can be used to implement a kernel.
 
 		// setTrapHandler takes one argument, which should be the trapHandler address in kernel.asm.
 		// setTrapHandler sets the kernel trapHandlerAddr to args[0]
