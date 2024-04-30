@@ -1,3 +1,6 @@
+; This program acts as a simple kernel, built off of the CPU implementation
+; in the go files. The first 
+
 main:
 	setTrapHandler .trapHandler
 
@@ -91,6 +94,7 @@ writeInstr:
 	move .exitTrapHandler r7
 	
 haltInstr:
+	write 10
 	write 'P'
 	write 'r'
 	write 'o'
@@ -179,8 +183,7 @@ exitTrapHandler:
 	load 16 r4
 	load 20 r5
 
-	; Then: Restore the iptr back to where it was in the program
-	; In kernel.go, we stored the correct iptr value at memory
-	; location 28
+	; Then: Restore the iptr back to where it was in the program.
+	; In kernel.go, we stored the correct iptr value at memory location 28.
 
 	changeMode 0 28

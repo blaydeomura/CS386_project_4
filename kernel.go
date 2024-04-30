@@ -60,7 +60,7 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 	}
 
 	// Check for timer interrupt every 128 instructions.
-	if k.timerCount >= 128 {
+	if k.timerCount > 128 {
 		fmt.Print("\nTimer fired!\n")
 		k.timerFireCount += 1
 		k.timerCount = 0
@@ -115,10 +115,19 @@ func init() {
 		if !c.kernel.kernelMode {
 			c.memory[24] = 5
 			kernelTrap(c)
-			// instrHalt.cb(c, args)
 			return true, nil
 		}
 		return false, nil
+	})
+
+	// Hook to try and execute unreachable
+	instrUnreachable.addHook(func(c *cpu, args [3]byte) (bool, error) {
+	if !c.kernel.kernelMode {
+		c.memory[24] = 5
+		kernelTrap(c)
+		return true, nil
+	}
+	return false, nil
 	})
 
 	// If called in userland, ensure that 'load' can only access memory within bounds
@@ -190,9 +199,8 @@ func init() {
 					return fmt.Errorf("invalid syscall number %d", syscallNumber)
 				}
 
-				c.memory[24] = word(syscallNumber)
+				c.memory[24] = word(syscallNumber)	// Save r6 into memory
 				kernelTrap(c)
-				//fmt.Println("Moved into trap handler...")
 				return nil
 			},
 			validate: genValidate(regOrLit, ignore, ignore),
@@ -241,6 +249,24 @@ func init() {
 			validate: genValidate(regOrLit, regOrLit, ignore),
 		}
 	)
+
+	instrSetTrapHandler.addHook(func(c *cpu, args [3]byte) (bool, error) {
+		if !c.kernel.kernelMode {
+			c.memory[24] = 5
+			kernelTrap(c)
+			return true, nil
+		}
+		return false, nil
+	})
+
+	instrChangeMode.addHook(func(c *cpu, args [3]byte) (bool, error) {
+		if !c.kernel.kernelMode {
+			c.memory[24] = 5;
+			kernelTrap(c)
+			return true, nil
+		}
+		return false, nil
+	})
 
 	// Add kernel instructions to the instruction set.
 	instructionSet.add(instrSyscall)
