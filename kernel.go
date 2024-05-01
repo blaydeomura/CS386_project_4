@@ -164,6 +164,7 @@ func init() {
 			// instrHalt.cb(c, args)
 			return true, nil
 		}
+		fmt.Printf("Total timercount: %d", c.kernel.timerCount)
 		//fmt.Printf("Timer fired %8.8x times\n", c.kernel.timerFireCount)
 		//fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
 		//kernelTrap(c, 7)

@@ -234,7 +234,6 @@ timerFired:
 	write 'd'
 	write '!'
 	write 10
-	write 48
 	move r4 r7
 
 writeTimerCount:
@@ -262,7 +261,7 @@ timerLoop:
 	;debug 0
 	loadLiteral .numeric r5
 	cmove r3 r5 r7			; If r2 is less than 10, jump to numeric
-	add r2 55 r2			; If r2 is greater than 10, add 55 so it becomes the proper ASCII for A-F
+	add r2 87 r2			; If r2 is greater than 10, add 55 so it becomes the proper ASCII for A-F
 
 continue:
 	write r2				; Write r2
@@ -285,7 +284,7 @@ finishTimerCount:
 
 	loadLiteral .lastNumeric r5
 	cmove r3 r5 r7
-	add r2 55 r2
+	add r2 87 r2
 	loadLiteral .lastContinue r5
 	move r5 r7
 
