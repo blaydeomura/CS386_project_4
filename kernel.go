@@ -25,11 +25,17 @@ var initKernelCpuState = kernelCpuState{
 }
 
 // This is trap for kernel
-func kernelTrap(c *cpu) {
-	c.memory[28] = c.registers[7] // save iptr in memory
-	c.kernel.kernelMode = true	// switch to kernel mode
-	c.registers[7] = c.kernel.trapHandlerAddr // set the iptr to address to the trap handler
-	//fmt.Println("Switched to kernel mode...\n") 
+func kernelTrap(c *cpu, trapNumber word) {
+	// if word = 6, then load c,memory[7] = timerFiredCount
+	if trapNumber == 7 {  // 6 means we're requesting timerFiredCount print
+		c.memory[7] = word(c.kernel.timerFireCount)
+		c.registers[7] = c.kernel.trapHandlerAddr // set the iptr to address to the trap handler
+	} else {
+		c.memory[6] = trapNumber
+		c.memory[7] = c.registers[7] // save iptr in memory
+		c.kernel.kernelMode = true	// switch to kernel mode
+		c.registers[7] = c.kernel.trapHandlerAddr
+	}
 }
 
 
@@ -61,9 +67,10 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 
 	// Check for timer interrupt every 128 instructions.
 	if k.timerCount > 128 {
-		fmt.Print("\nTimer fired!\n")
+		kernelTrap(c, 6)
 		k.timerFireCount += 1
 		k.timerCount = 0
+		//fmt.Println("\nTimer fired!")
 	}
 
 	return false, nil
@@ -102,8 +109,7 @@ func init() {
 	// Hook for write instruction to check for privellages
 	instrWrite.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			c.memory[24] = 5
-			kernelTrap(c)
+			kernelTrap(c, 5)
 			// instrHalt.cb(c, args)
 			return true, nil
 		}
@@ -113,8 +119,7 @@ func init() {
 	// Hook to try and Read
 	instrRead.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			c.memory[24] = 5
-			kernelTrap(c)
+			kernelTrap(c, 5)
 			return true, nil
 		}
 		return false, nil
@@ -123,8 +128,7 @@ func init() {
 	// Hook to try and execute unreachable
 	instrUnreachable.addHook(func(c *cpu, args [3]byte) (bool, error) {
 	if !c.kernel.kernelMode {
-		c.memory[24] = 5
-		kernelTrap(c)
+		kernelTrap(c, 5)
 		return true, nil
 	}
 	return false, nil
@@ -135,8 +139,7 @@ func init() {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[0])
 			if addr < 1024 || addr >= 2048 {
-				c.memory[24] = 4
-				kernelTrap(c)
+				kernelTrap(c, 4)
 				// instrHalt.cb(c, args)
 				return true, nil
 			}
@@ -149,8 +152,7 @@ func init() {
 		if !c.kernel.kernelMode {
 			addr := resolveArg(c, args[1])
 			if addr < 1024 || addr >= 2048 {
-				c.memory[24] = 4
-				kernelTrap(c)
+				kernelTrap(c, 4)
 				// instrHalt.cb(c, args)
 				return true, nil
 			}
@@ -161,15 +163,14 @@ func init() {
 	// Hook to halt cpu
 	instrHalt.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			c.memory[24] = 5
-			kernelTrap(c)
+			kernelTrap(c, 5)
 			// c.kernel.kernelMode = true
 			// instrHalt.cb(c, args)
 			return true, nil
 		}
-		fmt.Printf("Timer fired %8.8x times\n", c.kernel.timerFireCount)
+		//fmt.Printf("Timer fired %8.8x times\n", c.kernel.timerFireCount)
 		//fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
-
+		kernelTrap(c, 7)
 		return false, nil
 	})
 
@@ -199,8 +200,7 @@ func init() {
 					return fmt.Errorf("invalid syscall number %d", syscallNumber)
 				}
 
-				c.memory[24] = word(syscallNumber)	// Save r6 into memory
-				kernelTrap(c)
+				kernelTrap(c, word(syscallNumber))
 				return nil
 			},
 			validate: genValidate(regOrLit, ignore, ignore),
@@ -252,8 +252,7 @@ func init() {
 
 	instrSetTrapHandler.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			c.memory[24] = 5
-			kernelTrap(c)
+			kernelTrap(c, 5)
 			return true, nil
 		}
 		return false, nil
@@ -261,8 +260,7 @@ func init() {
 
 	instrChangeMode.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
-			c.memory[24] = 5;
-			kernelTrap(c)
+			kernelTrap(c, 5)
 			return true, nil
 		}
 		return false, nil
