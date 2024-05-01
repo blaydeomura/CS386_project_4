@@ -82,7 +82,7 @@ trapHandler:
 	store r4 4
 	store r5 5
 
-	load 6 r5
+	load 6 r5						; Load the trapNumber from memory
 	loadLiteral .exitTrapHandler r4
 	
 	lt r5 3 r0						; If r5 < 3, the trap is a syscall
@@ -105,19 +105,16 @@ trapHandler:
 	move r4 r7		; If r5 is none of those, it is an unrecognized trap, so exit
 	
 syscallHandler:
-	; If r6 == 0, execute a read instruction
-	; If r6 == 1, execute a write instruction
-	; If r6 == 2, execute a halt instruction
 
-	eq r5 0 r0
+	eq r5 0 r0					; If r6 == 0, execute a read instruction
 	loadLiteral .readInstr r3
 	cmove r0 r3 r7
 	
-	eq r5 1 r0
+	eq r5 1 r0					; If r6 == 1, execute a write instruction
 	loadLiteral .writeInstr r3
 	cmove r0 r3 r7
 	
-	eq r5 2 r0
+	eq r5 2 r0					; If r6 == 2, execute a halt instruction
 	loadLiteral .haltInstr r3
 	cmove r0 r3 r7
 
@@ -125,15 +122,15 @@ syscallHandler:
 	move r4 r7
 
 readInstr:
-	read r6
-	move r4 r7
+	read r6						; Execute the read instruction as the kernel
+	move r4 r7					; Then jump to .exitTrapHandler
 
 writeInstr:
-	write r6
-	move r4 r7
+	write r6					; Execute the write instruction as the kernel
+	move r4 r7					; Then jump to .exitTrapHandler
 	
 haltInstr:
-	write 10
+	write 10 					; Write "\nProgram has exited\n", then halt
 	write 'P'
 	write 'r'
 	write 'o'
@@ -158,7 +155,7 @@ haltInstr:
 	move r0 r7
 
 memoryOutOfBounds:
-	write 10
+	write 10 						; Write "\nOut of bounds memory access!\n" then halt
 	write 'O'
 	write 'u'
 	write 't'
@@ -193,7 +190,7 @@ memoryOutOfBounds:
 	move r0 r7
 	
 illegalInstruction:
-	write 10
+	write 10 						; Write "\nIllegal instruction!\n" then halt
 	write 'I'
 	write 'l'
 	write 'l'
@@ -220,7 +217,7 @@ illegalInstruction:
 	move r0 r7
 
 timerFired:
-	write 10
+	write 10 						; Write "\nTimer fired!\n" then jump to .exitTrapHandler
 	write 'T'
 	write 'i'
 	write 'm'
@@ -237,7 +234,7 @@ timerFired:
 	move r4 r7
 
 writeTimerCount:
-	write 'T'
+	write 'T' 				; On exit for any reason, write "Timer Fired XXXXXXXX times!\n" then halt
 	write 'i'
 	write 'm'
 	write 'e'
@@ -278,7 +275,7 @@ numeric:
 	loadLiteral .continue r5
 	move r5 r7				; Jump back to continue the loop
 	
-finishTimerCount:
+finishTimerCount:			; finishTimer Count and lastNumeric run the above loop for the last word
 	and r0 15 r2
 	lt r2 10 r3
 
@@ -292,7 +289,7 @@ lastNumeric:
 	add r2 48 r2
 
 lastContinue:
-	write r2
+	write r2				
 	write 32
 	write 't'
 	write 'i'
@@ -300,7 +297,7 @@ lastContinue:
 	write 'e'
 	write 's'
 	write 10
-	halt
+	halt 					; Finally: halt!
 	
 
 exitTrapHandler:
