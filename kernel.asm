@@ -75,7 +75,6 @@ loop:
 
 trapHandler:
 	; Store the CPU program state in memory before executing trap handler
-
 	store r0 0
 	store r1 1
 	store r2 2
@@ -154,7 +153,9 @@ haltInstr:
 	write 'e'
 	write 'd'
 	write 10
-	halt
+
+	loadLiteral .writeTimerCount r0
+	move r0 r7
 
 memoryOutOfBounds:
 	write 10
@@ -187,7 +188,9 @@ memoryOutOfBounds:
 	write 's'
 	write '!'
 	write 10
-	halt
+
+	loadLiteral .writeTimerCount r0
+	move r0 r7
 	
 illegalInstruction:
 	write 10
@@ -212,7 +215,9 @@ illegalInstruction:
 	write 'n'
 	write '!'
 	write 10
-	halt
+
+	loadLiteral .writeTimerCount r0
+	move r0 r7
 
 timerFired:
 	write 10
@@ -254,6 +259,7 @@ timerLoop:
 	and r2 15 r2			; Mask the leftmost un-written four bits
 	lt r2 10 r3				; Check: Are those four bits less than 10?
 
+	;debug 0
 	loadLiteral .numeric r5
 	cmove r3 r5 r7			; If r2 is less than 10, jump to numeric
 	add r2 55 r2			; If r2 is greater than 10, add 55 so it becomes the proper ASCII for A-F
@@ -262,7 +268,7 @@ continue:
 	write r2				; Write r2
 	sub r1 4 r1				; Reduce the shift amount by 4
 
-	lt r1 0 r3				; Check: Is the shift amount LESS than 0?
+	eq r1 0 r3				; Check: Is the shift amount EQUAL to 0?
 	loadLiteral .finishTimerCount r5
 	cmove r3 r5 r7			; If so, jump to the rest of the writeTimerCount
 	loadLiteral .timerLoop r5
@@ -274,6 +280,20 @@ numeric:
 	move r5 r7				; Jump back to continue the loop
 	
 finishTimerCount:
+	and r0 15 r2
+	lt r2 10 r3
+
+	loadLiteral .lastNumeric r5
+	cmove r3 r5 r7
+	add r2 55 r2
+	loadLiteral .lastContinue r5
+	move r5 r7
+
+lastNumeric:
+	add r2 48 r2
+
+lastContinue:
+	write r2
 	write 32
 	write 't'
 	write 'i'

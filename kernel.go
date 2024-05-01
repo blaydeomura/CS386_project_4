@@ -27,17 +27,13 @@ var initKernelCpuState = kernelCpuState{
 // This is trap for kernel
 func kernelTrap(c *cpu, trapNumber word) {
 	// if word = 6, then load c,memory[7] = timerFiredCount
-	if trapNumber == 7 {  // 6 means we're requesting timerFiredCount print
-		c.memory[7] = word(c.kernel.timerFireCount)
-		c.registers[7] = c.kernel.trapHandlerAddr // set the iptr to address to the trap handler
-	} else {
-		c.memory[6] = trapNumber
-		c.memory[7] = c.registers[7] // save iptr in memory
-		c.kernel.kernelMode = true	// switch to kernel mode
-		c.registers[7] = c.kernel.trapHandlerAddr
-	}
-}
+	c.memory[8] = word(c.kernel.timerFireCount)
 
+	c.memory[6] = trapNumber
+	c.memory[7] = c.registers[7] // save iptr in memory
+	c.kernel.kernelMode = true	// switch to kernel mode
+	c.registers[7] = c.kernel.trapHandlerAddr
+}
 
 // saveCpuState saves the current state of the CPU registers into a designated area of memory.
 func saveCpuState(c *cpu) {
@@ -170,7 +166,7 @@ func init() {
 		}
 		//fmt.Printf("Timer fired %8.8x times\n", c.kernel.timerFireCount)
 		//fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
-		kernelTrap(c, 7)
+		//kernelTrap(c, 7)
 		return false, nil
 	})
 
