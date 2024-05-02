@@ -6,9 +6,126 @@ import "fmt"
 //
 // All of your CPU emulator changes for Assignment 2 will go in this file.
 
+/*
+CPU support for kernel implementation.
+
+Contents:
+* 1.x: CPU support setup: Struct + Var init
+* 2.x: Helper functions
+* 3.x: Pre-execute hook parts
+* 4.x: Instrucitons
+* 5.x: Syscall
+* 6.x: Instruction hooks
+
+1.1: Setup:
+* Purpose:
+	* The purpose of the setup is to save the state of the CPU to implement kernel support
+	* This will be used later for functions, pre execute hook, instructions, and instruction hooks
+* kernelCpuState struct
+	* Features include:
+		* kernelMode: Tells kernel whether in kernel mode or userland mode
+		* timerCount: Keeps track of the timer slice count and resets every 128 counts
+		* trapHandlerAddr: This is the memory address where our kernel mode lives
+		* timerFireCount: This is how many times the timerCount has hit 128
+* 1.2: var initKernelCpuState
+	* This sets up the initial state for the cpu
+	* kernelMode: we initially set the kernelMode to true so we start in kernel mode on
+	* timerCount: starts at 0 and is to be incremented
+	* trapHandlerAddr: it starts as 0 for now but will be set once we get access to registers and memory
+	* timerFireCount: starts at 0 and increments every 128 time slices
+
+2.x Helper Functions
+* 2.1: kernelTrap
+* This function is used to trap every time the mode needs to be switched into kernel mode
+* What it does:
+	* Saves the timerFireCount into kernel.asm memory 
+	* Saves the trapNumber(parameter that is called in asm) into kernel.asm memory
+	* Saves the instruction pointer into the kernel.asm memory
+	* Changes the kernel mode to true
+	* Sets the instruction pointer to the allocated memory for kernel mode at trapHandlerAddr
+* Where it is used:
+	* preExecuteHook: In the preExecuteHook, if the timerCount is greater than 128, then we need to trap to the kernel mode
+	* Instruction hooks: when instruction hooks fail, this function will be called to trap into kernel mode
+	* Instructions: It is also used in instructions for kernel.asm to use for setting the trap handler as well as changing mode
+	* Syscall: Also always called in syscall to trap to kernel mode
+
+
+3.x preExecuteHooks
+* Purpose:  A hook which is executed at the beginning of each instruction step.
+* 3.1: Check timer count
+	* We first check if the timer count is greater than 128
+		* If it is greater than 128 then we call kernelTrap, increment both timerFireCount and timer coiunt
+* 3.2: Check if kernel mode
+	* If we're not in kernel mode, then we increment counter
+
+4.x Instructions
+* Purpose: provide callable instructions for kernel.asm
+* 4.1 instrSetTrapHandler
+	* Purpose: setTrapHandler takes one argument, which should be the trapHandler address in kernel.asm.
+		* setTrapHandler sets the kernel trapHandlerAddr to args[0]
+	* Process:
+		* Identifies the setTrapHandler name 
+		* sets trap handler address
+		* runs the genValidate function from instr.go
+* 4.2 instrChangeMode
+	* Purpose: It is meant to change kernel modes and to switch back into the user program at the same time.
+	* Process:
+		* instrChangeMode checks first if the kernel is in kernelMode or not. If not, it does nothing
+		* If it is called in kernel mode, instrChangeMode changes the kernelMode to parameter 1, which should be either
+		* 0 or 1.
+		* 0: Switch to user mode, so kernelMode = false
+		* 1: Switch to kernel mode, so kernelMode = true
+		* Then, if the second argument passed to instrChangeMode is not empty, it loads the value at args[1] and 
+		* sets the iptr to that value
+
+5.x Syscall
+* Purpose: to allow a way for userland process to request services from OS kernel
+* Process:
+	* Mask out the high bit to get the correct syscall number
+	* Check whether it is a valid syscall so either 0, 1, or 2
+	* Then call kernelTrap
+
+6.x Instruction Hooks
+* Purpose: Purpose is to provide specific behavior for instructions
+	* good for preventing execution of privileged instructions when in user mode
+* 6.1: instrWrite:
+	* Purpose: instruction hook check for write
+	* if not in kernel mode then call kernelTrap() and return true
+	* else return false
+* 6.2: instrRead:
+	* Purpose: instruction hook check for read
+	* if not in kernel mode then call kernelTrap() and return true
+	* else return false
+* 6.3: instrUnreachable:
+	* Purpose: Hook to try and execute unreachable
+	* if not in kernel mode then call kernelTrap() and return true
+	* else return false
+* 6.4: instrLoad:
+	* Purpose: Hook to check if loading from valid memory bounds
+	* if not in kernel mode
+	* Set the address to argument 0
+	* Ensure addr is in 1024 - 2048
+* 6.5: instrStore:
+	* Purpose: Hook to check if store from valid memory bounds
+	* if not in kernel mode
+	* Set the address to argument 0
+	* Ensure addr is in 1024 - 2048
+* 6.6: instrHalt:
+	* Purpose: Hook to halt cpu
+	* if not in kernel mode then call kernelTrap() and return true
+	* else return false
+* 6.7: instrSetTrapHandler:
+	* Purpose: is to set trap handler
+	* if not in kernel mode then call kernelTrap() and return true
+	* else return false
+* 6.8: instrChangeMode:
+	* Purpose: Hook to check if changing mode is allwoed
+	* if not in kernel mode then call kernelTrap() and return true
+	* else return false
+*/
+
 // The state kept by the CPU in order to implement kernel support.
 type kernelCpuState struct {
-	// TODO: Fill this in.
 	kernelMode      bool   // True if in kernel mode, false if in user mode.
 	timerCount      uint32 // Count of instructions executed for timer management.
 	trapHandlerAddr word // Static memory address where the trap handler is located.
@@ -17,7 +134,6 @@ type kernelCpuState struct {
 
 // The initial kernel state when the CPU boots.
 var initKernelCpuState = kernelCpuState{
-	// TODO: Fill this in.
 	kernelMode:      true,  // Start in kernel mode.
 	timerCount:      0,      // Timer count starts at 0.
 	trapHandlerAddr: 0, 	// Kernel Addr
@@ -26,23 +142,11 @@ var initKernelCpuState = kernelCpuState{
 
 // This is trap for kernel
 func kernelTrap(c *cpu, trapNumber word) {
-	// if word = 6, then load c,memory[7] = timerFiredCount
 	c.memory[8] = word(c.kernel.timerFireCount)
-
 	c.memory[6] = trapNumber
 	c.memory[7] = c.registers[7] // save iptr in memory
 	c.kernel.kernelMode = true	// switch to kernel mode
 	c.registers[7] = c.kernel.trapHandlerAddr
-}
-
-// saveCpuState saves the current state of the CPU registers into a designated area of memory.
-func saveCpuState(c *cpu) {
-    fmt.Println("Saving current CPU state...")
-    // Save registers to a predefined memory area, e.g., starting at address 0.
-    for i, reg := range c.registers {
-        c.memory[4*i] = reg // Assume each register value is stored in 4 consecutive bytes.
-    }
-    fmt.Println("CPU state saved successfully.")
 }
 
 // A hook which is executed at the beginning of each instruction step.
@@ -61,14 +165,12 @@ func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
 		kernelTrap(c, 6)
 		k.timerFireCount += 1
 		k.timerCount = 0
-		//fmt.Println("\nTimer fired!")
 	}
 
 	// if not in kernel mode increment the timer
 	if !c.kernel.kernelMode {
 		k.timerCount++;
 	}
-
 
 	return false, nil
 }
@@ -99,15 +201,10 @@ func init() {
 		})
 	}
 
-	// Basic hook looks  like this:
-		// if a hook is not supposed to happen, then we need to switch to kernel mode
-		// else if it is not called, then we're good to continue
-
 	// Hook for write instruction to check for privellages
 	instrWrite.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
 			kernelTrap(c, 5)
-			// instrHalt.cb(c, args)
 			return true, nil
 		}
 		return false, nil
@@ -137,7 +234,6 @@ func init() {
 			addr := resolveArg(c, args[0])
 			if addr < 1024 || addr >= 2048 {
 				kernelTrap(c, 4)
-				// instrHalt.cb(c, args)
 				return true, nil
 			}
 		}
@@ -161,14 +257,8 @@ func init() {
 	instrHalt.addHook(func(c *cpu, args [3]byte) (bool, error) {
 		if !c.kernel.kernelMode {
 			kernelTrap(c, 5)
-			// c.kernel.kernelMode = true
-			// instrHalt.cb(c, args)
 			return true, nil
 		}
-		//fmt.Printf("Total timercount: %d", c.kernel.timerCount)
-		//fmt.Printf("Timer fired %8.8x times\n", c.kernel.timerFireCount)
-		//fmt.Printf("Timer fired: %d times\n", c.kernel.timerFireCount)
-		//kernelTrap(c, 7)
 		return false, nil
 	})
 
@@ -191,9 +281,7 @@ func init() {
 			name: "syscall",
 			cb: func(c *cpu, args [3]byte) error {
 				syscallNumber := int(args[0] & 0x7F) // Mask out the high bit to get the correct syscall number
-				//fmt.Println("Executing syscall number: ", syscallNumber)
 
-				// TODO: ADD IN a check to see if we're in kernel mode. If not, get into it
 				if syscallNumber > 2 || syscallNumber < 0 {
 					return fmt.Errorf("invalid syscall number %d", syscallNumber)
 				}
