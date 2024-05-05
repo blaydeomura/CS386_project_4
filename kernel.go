@@ -160,16 +160,16 @@ func kernelTrap(c *cpu, trapNumber word) {
 // If `preExecuteHook` returns `true`, the instruction is "skipped": `cpu.step`
 // will immediately return without any further execution.
 func (k *kernelCpuState) preExecuteHook(c *cpu) (bool, error) {
-	// Check for timer interrupt every 128 instructions.
-	if k.timerCount > 128 {
-		kernelTrap(c, 6)
-		k.timerFireCount += 1
-		k.timerCount = 0
-	}
-
 	// if not in kernel mode increment the timer
 	if !c.kernel.kernelMode {
 		k.timerCount++;
+	}
+
+	// Check for timer interrupt every 128 instructions.
+	if k.timerCount > 128 {
+		k.timerFireCount += 1
+		k.timerCount = 0
+		kernelTrap(c, 6)
 	}
 
 	return false, nil
